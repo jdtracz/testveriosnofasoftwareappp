@@ -1,0 +1,619 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#4f98a3">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Proteza">
+<link rel="manifest" href="./manifest.json">
+<title>Proteza Ręki</title>
+<style>
+:root {
+  --bg:#0f1117; --surface:#1a1d27; --surface2:#22263a;
+  --border:#2e3350; --accent:#4f98a3; --accent2:#6daa45;
+  --warn:#e8af34; --error:#d163a7;
+  --text:#cdccca; --muted:#797876; --faint:#5a5957;
+  --radius:12px; --trans:180ms cubic-bezier(0.16,1,0.3,1);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+html,body{height:100%;overflow:hidden;}
+body{
+  background:var(--bg);color:var(--text);
+  font-family:-apple-system,'Segoe UI',sans-serif;
+  font-size:15px;display:flex;flex-direction:column;
+}
+
+/* ── Header ── */
+.header{
+  background:var(--surface);border-bottom:1px solid var(--border);
+  padding:12px 16px;display:flex;align-items:center;gap:12px;
+  flex-shrink:0;
+}
+.header-logo{width:28px;height:28px;flex-shrink:0;}
+.header-title{font-size:1.05rem;font-weight:700;color:#fff;}
+.ble-btn{
+  margin-left:auto;display:flex;align-items:center;gap:6px;
+  background:var(--surface2);border:1px solid var(--border);
+  border-radius:20px;padding:6px 14px;font-size:0.8rem;
+  font-weight:600;color:var(--muted);cursor:pointer;
+  transition:all var(--trans);
+}
+.ble-btn.connected{color:var(--accent2);border-color:var(--accent2);}
+.ble-btn.connecting{color:var(--warn);border-color:var(--warn);}
+.ble-dot{width:7px;height:7px;border-radius:50%;background:currentColor;}
+
+/* ── Status bar ── */
+.status-bar{
+  background:var(--surface);border-bottom:1px solid var(--border);
+  padding:6px 16px;font-size:0.75rem;color:var(--muted);
+  display:flex;align-items:center;gap:8px;flex-shrink:0;
+  min-height:30px;
+}
+.status-bar.error{color:var(--error);}
+.status-bar.ok{color:var(--accent2);}
+
+/* ── Bottom nav ── */
+.bottom-nav{
+  background:var(--surface);border-top:1px solid var(--border);
+  display:flex;flex-shrink:0;
+  padding-bottom:var(--safe-bottom);
+}
+.nav-item{
+  flex:1;display:flex;flex-direction:column;align-items:center;
+  gap:3px;padding:10px 4px;cursor:pointer;
+  font-size:0.68rem;color:var(--muted);
+  transition:color var(--trans);border:none;background:none;
+}
+.nav-item.active{color:var(--accent);}
+.nav-item svg{width:22px;height:22px;}
+
+/* ── Scroll area ── */
+.content{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;}
+.page{display:none;padding:14px 14px 20px;}
+.page.active{display:block;}
+
+/* ── Section title ── */
+.section-title{
+  font-size:0.7rem;font-weight:700;color:var(--accent);
+  letter-spacing:.8px;text-transform:uppercase;margin-bottom:12px;
+}
+
+/* ── Servo cards ── */
+.servo-list{display:flex;flex-direction:column;gap:10px;}
+.servo-card{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--radius);padding:14px 16px;
+}
+.servo-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
+.servo-name{font-weight:600;font-size:0.9rem;}
+.servo-val{font-size:1.15rem;font-weight:800;color:var(--accent);}
+.servo-pct{font-size:0.72rem;color:var(--muted);margin-left:3px;}
+input[type=range]{
+  width:100%;-webkit-appearance:none;appearance:none;
+  height:6px;border-radius:3px;cursor:pointer;
+  background:linear-gradient(to right, var(--accent) 0%, var(--accent) var(--pct,0%), var(--border) var(--pct,0%));
+  outline:none;
+}
+input[type=range]::-webkit-slider-thumb{
+  -webkit-appearance:none;width:22px;height:22px;border-radius:50%;
+  background:var(--accent);cursor:pointer;
+  box-shadow:0 2px 8px rgba(79,152,163,.5);
+}
+.range-limits{display:flex;justify-content:space-between;font-size:0.68rem;color:var(--faint);margin-top:4px;}
+
+/* ── Grip page ── */
+.grip-master{
+  background:var(--surface);border:2px solid var(--accent);
+  border-radius:var(--radius);padding:18px 16px;margin-bottom:16px;
+}
+.grip-display{font-size:3.5rem;font-weight:900;color:var(--accent);text-align:center;line-height:1;margin-bottom:12px;}
+#gripRange{height:10px;}
+#gripRange::-webkit-slider-thumb{width:28px;height:28px;}
+
+.viz-row{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-top:14px;}
+.viz-col{display:flex;flex-direction:column;align-items:center;gap:4px;}
+.viz-outer{
+  width:100%;max-width:32px;aspect-ratio:1/3;
+  background:var(--bg);border:1px solid var(--border);
+  border-radius:8px;overflow:hidden;display:flex;align-items:flex-end;
+}
+.viz-fill{width:100%;background:var(--accent);border-radius:8px;transition:height .15s ease;}
+.viz-lbl{font-size:0.6rem;color:var(--muted);}
+
+.profile-list{display:flex;flex-direction:column;gap:10px;margin-top:16px;}
+.profile-card{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--radius);padding:12px 14px;
+}
+.profile-card h4{font-size:0.82rem;font-weight:600;margin-bottom:8px;}
+.pbar-wrap{height:14px;background:var(--bg);border-radius:7px;margin-bottom:8px;position:relative;overflow:hidden;}
+.pbar{position:absolute;height:100%;border-radius:7px;background:linear-gradient(90deg,var(--accent),var(--accent2));}
+.profile-inputs{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+.profile-inputs label{font-size:0.72rem;color:var(--muted);display:flex;flex-direction:column;gap:3px;}
+.profile-inputs input[type=number]{
+  background:var(--bg);border:1px solid var(--border);
+  border-radius:6px;color:var(--text);padding:6px 10px;
+  font-size:0.875rem;width:100%;
+}
+.profile-inputs input:focus{outline:2px solid var(--accent);}
+
+/* ── Presets page ── */
+.preset-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;}
+.preset-card{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--radius);padding:20px 14px;text-align:center;
+  cursor:pointer;transition:background var(--trans),border-color var(--trans);
+  active:scale(0.96);
+}
+.preset-card:active{transform:scale(0.96);}
+.preset-card:hover,.preset-card:focus{background:var(--surface2);border-color:var(--accent);}
+.preset-icon{font-size:2.2rem;margin-bottom:8px;}
+.preset-name{font-size:0.875rem;font-weight:600;}
+.preset-desc{font-size:0.72rem;color:var(--muted);margin-top:4px;}
+
+/* ── Buttons ── */
+.btn-row{display:flex;gap:10px;margin-top:16px;flex-wrap:wrap;}
+.btn{
+  flex:1;min-width:120px;display:flex;align-items:center;justify-content:center;
+  gap:6px;padding:13px 16px;border-radius:10px;
+  font-size:0.875rem;font-weight:700;cursor:pointer;border:none;
+  transition:all var(--trans);
+}
+.btn:active{transform:scale(0.96);}
+.btn-primary{background:var(--accent);color:#fff;}
+.btn-primary:active{background:#227f8b;}
+.btn-reset{background:var(--surface2);border:1px solid var(--border);color:var(--muted);}
+.btn-reset:active{background:var(--border);}
+
+/* ── No BLE overlay ── */
+.no-ble{
+  display:none;position:fixed;inset:0;background:rgba(15,17,23,.9);
+  z-index:100;align-items:center;justify-content:center;flex-direction:column;
+  gap:16px;padding:32px;text-align:center;
+}
+.no-ble.show{display:flex;}
+.no-ble-icon{font-size:3rem;}
+.no-ble h2{font-size:1.1rem;color:#fff;}
+.no-ble p{font-size:0.85rem;color:var(--muted);max-width:30ch;}
+</style>
+</head>
+<body>
+
+<!-- No BLE overlay -->
+<div class="no-ble" id="noBle">
+  <div class="no-ble-icon">📵</div>
+  <h2>Web Bluetooth niedostępny</h2>
+  <p>Użyj Chrome na Androidzie. Safari i Firefox nie obsługują Web Bluetooth.</p>
+</div>
+
+<!-- Header -->
+<header class="header">
+  <svg class="header-logo" viewBox="0 0 28 28" fill="none">
+    <rect x="10" y="2" width="8" height="18" rx="4" fill="#4f98a3"/>
+    <rect x="3"  y="6" width="6" height="13" rx="3" fill="#4f98a3" opacity=".7"/>
+    <rect x="19" y="6" width="6" height="13" rx="3" fill="#4f98a3" opacity=".7"/>
+    <rect x="3"  y="21" width="22" height="5" rx="2.5" fill="#4f98a3" opacity=".5"/>
+  </svg>
+  <span class="header-title">Proteza Ręki</span>
+  <button class="ble-btn" id="bleBtn" onclick="toggleBLE()">
+    <span class="ble-dot"></span>
+    <span id="bleBtnTxt">Połącz BLE</span>
+  </button>
+</header>
+
+<!-- Status -->
+<div class="status-bar" id="statusBar">Rozłączony — naciśnij "Połącz BLE"</div>
+
+<!-- Content -->
+<div class="content">
+
+  <!-- PAGE 1: Niezależny -->
+  <div class="page active" id="page-independent">
+    <p class="section-title">Sterowanie Niezależne</p>
+    <div class="servo-list" id="servoList"></div>
+    <div class="btn-row">
+      <button class="btn btn-reset" onclick="resetAll()">↺ Otwórz dłoń</button>
+      <button class="btn btn-primary" onclick="sendAll()">▶ Wyślij</button>
+    </div>
+  </div>
+
+  <!-- PAGE 2: Chwyt adaptacyjny -->
+  <div class="page" id="page-grip">
+    <div class="grip-master">
+      <p class="section-title" style="text-align:center;margin-bottom:8px">Chwyt globalny</p>
+      <div class="grip-display" id="gripDisplay">0%</div>
+      <input type="range" id="gripRange" min="0" max="100" value="0"
+             oninput="onGripChange(this.value)" style="--pct:0%">
+      <div class="range-limits"><span>Otwarta</span><span>Zamknięta</span></div>
+    </div>
+
+    <div class="viz-row" id="vizRow"></div>
+
+    <p class="section-title" style="margin-top:18px">Profile sprzężenia</p>
+    <p style="font-size:0.78rem;color:var(--muted);margin-bottom:12px">
+      Zakres (%) globalnego suwaka w którym dany napęd wykonuje ruch.
+    </p>
+    <div class="profile-list" id="profileList"></div>
+
+    <div class="btn-row">
+      <button class="btn btn-reset" onclick="resetAll()">↺ Otwórz</button>
+      <button class="btn btn-primary" onclick="applyGrip()">✓ Zastosuj</button>
+    </div>
+  </div>
+
+  <!-- PAGE 3: Presety -->
+  <div class="page" id="page-presets">
+    <p class="section-title">Presety chwytu</p>
+    <div class="preset-grid" id="presetGrid"></div>
+  </div>
+
+</div>
+
+<!-- Bottom Nav -->
+<nav class="bottom-nav">
+  <button class="nav-item active" id="nav-independent" onclick="showPage('independent')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <line x1="8" y1="6" x2="8" y2="18"/><line x1="12" y1="3" x2="12" y2="18"/>
+      <line x1="16" y1="8" x2="16" y2="18"/>
+    </svg>
+    Niezależny
+  </button>
+  <button class="nav-item" id="nav-grip" onclick="showPage('grip')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <path d="M18 11V6a2 2 0 0 0-4 0v5M14 10V4a2 2 0 0 0-4 0v6M10 10V5a2 2 0 0 0-4 0v9"/>
+      <path d="M6 14v1a6 6 0 0 0 12 0v-2a2 2 0 0 0-4 0"/>
+    </svg>
+    Chwyt
+  </button>
+  <button class="nav-item" id="nav-presets" onclick="showPage('presets')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <rect x="3" y="3" width="7" height="7" rx="1"/>
+      <rect x="14" y="3" width="7" height="7" rx="1"/>
+      <rect x="3" y="14" width="7" height="7" rx="1"/>
+      <rect x="14" y="14" width="7" height="7" rx="1"/>
+    </svg>
+    Presety
+  </button>
+</nav>
+
+<script>
+// ============================================================
+//  Konfiguracja — identyczna z ESP32
+// ============================================================
+const SERVICE_UUID     = '12345678-1234-1234-1234-123456789abc';
+const CHAR_SERVO_UUID  = '12345678-0001-1234-1234-123456789abc';
+const CHAR_GRIP_UUID   = '12345678-0002-1234-1234-123456789abc';
+const CHAR_STATUS_UUID = '12345678-0003-1234-1234-123456789abc';
+
+const SERVO_NAMES  = ['Palec 1','Palec 2','Palec 3','Palec 4','Kciuk Rotacja','Kciuk Paliczek','Kciuk Zgięcie'];
+const SERVO_OPEN   = [0,   0,   120,  0,   0,   0,   0];
+const SERVO_CLOSE  = [120, 120, 0,    120, 100, 180, 180];
+const SERVO_MIN    = [0,   0,   0,    0,   0,   0,   0];
+const SERVO_MAX    = [120, 120, 120,  120, 100, 180, 180];
+
+const PRESETS = [
+  {name:'Otwarty',      icon:'🖐️', desc:'Dłoń w pełni otwarta',  angles:[0,  0,   120, 0,  0,  0,  0]},
+  {name:'Cylindryczny', icon:'🤛', desc:'Chwyt walca/kubka',      angles:[100,100, 20, 100,70, 130,100]},
+  {name:'Szczypcowy',   icon:'🤌', desc:'Precyzyjny dwupalcowy',  angles:[110,110, 10, 0,  80, 150,120]},
+  {name:'Kluczowy',     icon:'🤙', desc:'Chwyt klucza/karty',     angles:[90, 90,  30, 90, 50, 90, 70]},
+  {name:'Wskazujący',   icon:'👆', desc:'Jeden palec wyprostowany',angles:[0,  100, 20, 100,60, 120,80]},
+];
+
+let gripStart = [0,  5,  5,  10, 20, 20, 10];
+let gripEnd   = [80, 80, 75, 85, 90, 95, 80];
+
+let currentPos  = [...SERVO_OPEN];
+let currentGrip = 0;
+
+// ── BLE state ──
+let bleDevice   = null;
+let bleServer   = null;
+let servoChar   = null;
+let gripChar    = null;
+let statusChar  = null;
+
+// ============================================================
+//  BLE
+// ============================================================
+async function toggleBLE() {
+  if (bleDevice && bleDevice.gatt.connected) {
+    bleDevice.gatt.disconnect();
+    setBLEState('disconnected');
+    return;
+  }
+  if (!navigator.bluetooth) {
+    document.getElementById('noBle').classList.add('show');
+    return;
+  }
+  try {
+    setBLEState('connecting');
+    bleDevice = await navigator.bluetooth.requestDevice({
+      filters: [{ name: 'Proteza_Reka' }],
+      optionalServices: [SERVICE_UUID]
+    });
+    bleDevice.addEventListener('gattserverdisconnected', onDisconnected);
+    bleServer = await bleDevice.gatt.connect();
+    const svc  = await bleServer.getPrimaryService(SERVICE_UUID);
+    servoChar  = await svc.getCharacteristic(CHAR_SERVO_UUID);
+    gripChar   = await svc.getCharacteristic(CHAR_GRIP_UUID);
+    statusChar = await svc.getCharacteristic(CHAR_STATUS_UUID);
+    // Subskrybuj powiadomienia statusu
+    await statusChar.startNotifications();
+    statusChar.addEventListener('characteristicvaluechanged', onStatusNotify);
+    setBLEState('connected');
+  } catch(e) {
+    setBLEState('disconnected');
+    setStatus('Błąd BLE: ' + e.message, 'error');
+  }
+}
+
+function onDisconnected() {
+  setBLEState('disconnected');
+  setStatus('Rozłączono z Proteza_Reka', '');
+}
+
+function onStatusNotify(e) {
+  const val = new TextDecoder().decode(e.target.value);
+  const parts = val.split(',').map(Number);
+  // Opcjonalnie aktualizuj wizualizację wizualną na żywo
+  for (let i = 0; i < 7 && i < parts.length; i++) {
+    const fill = calcPct(i, parts[i]);
+    const vb = document.getElementById('vb'+i);
+    if (vb) vb.style.height = fill + '%';
+  }
+}
+
+function setBLEState(state) {
+  const btn  = document.getElementById('bleBtn');
+  const txt  = document.getElementById('bleBtnTxt');
+  btn.className = 'ble-btn';
+  if (state === 'connected') {
+    btn.classList.add('connected');
+    txt.textContent = 'Połączony ✓';
+    setStatus('Połączono z Proteza_Reka', 'ok');
+  } else if (state === 'connecting') {
+    btn.classList.add('connecting');
+    txt.textContent = 'Łączenie...';
+    setStatus('Szukam urządzenia...', '');
+  } else {
+    txt.textContent = 'Połącz BLE';
+    setStatus('Rozłączony', '');
+  }
+}
+
+function setStatus(msg, cls) {
+  const bar = document.getElementById('statusBar');
+  bar.textContent = msg;
+  bar.className = 'status-bar' + (cls ? ' ' + cls : '');
+}
+
+// ============================================================
+//  Wysyłanie danych BLE
+// ============================================================
+async function sendServoCmd(pos) {
+  if (!servoChar) { setStatus('Nie połączono z BLE', 'error'); return; }
+  const cmd = pos.map((v,i) => `s${i+1}=${v}`).join(',');
+  try {
+    await servoChar.writeValue(new TextEncoder().encode(cmd));
+  } catch(e) {
+    setStatus('Błąd wysyłania: ' + e.message, 'error');
+  }
+}
+
+async function sendGripCmd(pct) {
+  if (!gripChar) { setStatus('Nie połączono z BLE', 'error'); return; }
+  try {
+    await gripChar.writeValue(new TextEncoder().encode('pct=' + pct));
+  } catch(e) {
+    setStatus('Błąd wysyłania: ' + e.message, 'error');
+  }
+}
+
+// ============================================================
+//  Logika UI — Niezależny
+// ============================================================
+function calcPct(i, val) {
+  const range = Math.abs(SERVO_CLOSE[i] - SERVO_OPEN[i]);
+  if (!range) return 0;
+  return Math.round(Math.abs(val - SERVO_OPEN[i]) / range * 100);
+}
+
+function onServoChange(i, val) {
+  val = parseInt(val);
+  currentPos[i] = val;
+  document.getElementById('sv'+i).textContent = val + '°';
+  document.getElementById('sp'+i).textContent = calcPct(i,val) + '%';
+  const sl = document.getElementById('sl'+i);
+  const pct = ((val - SERVO_MIN[i]) / (SERVO_MAX[i] - SERVO_MIN[i]) * 100).toFixed(1);
+  sl.style.setProperty('--pct', pct + '%');
+}
+
+function buildServoList() {
+  const list = document.getElementById('servoList');
+  list.innerHTML = '';
+  for (let i = 0; i < 7; i++) {
+    const pct = ((currentPos[i] - SERVO_MIN[i]) / (SERVO_MAX[i] - SERVO_MIN[i]) * 100).toFixed(1);
+    list.innerHTML += `
+    <div class="servo-card">
+      <div class="servo-row">
+        <span class="servo-name">${SERVO_NAMES[i]}</span>
+        <span>
+          <span class="servo-val" id="sv${i}">${currentPos[i]}°</span>
+          <span class="servo-pct" id="sp${i}">${calcPct(i,currentPos[i])}%</span>
+        </span>
+      </div>
+      <input type="range" id="sl${i}"
+             min="${SERVO_MIN[i]}" max="${SERVO_MAX[i]}"
+             value="${currentPos[i]}" style="--pct:${pct}%"
+             oninput="onServoChange(${i},this.value)">
+      <div class="range-limits"><span>${SERVO_MIN[i]}°</span><span>${SERVO_MAX[i]}°</span></div>
+    </div>`;
+  }
+}
+
+async function sendAll() {
+  setStatus('Wysyłanie...', '');
+  await sendServoCmd(currentPos);
+  setStatus('Wysłano ✓', 'ok');
+}
+
+async function resetAll() {
+  for (let i = 0; i < 7; i++) {
+    currentPos[i] = SERVO_OPEN[i];
+    const sl = document.getElementById('sl'+i);
+    if (sl) { sl.value = currentPos[i]; onServoChange(i, currentPos[i]); }
+  }
+  document.getElementById('gripRange').value = 0;
+  onGripChange(0);
+  setStatus('Resetowanie...', '');
+  await sendServoCmd(currentPos);
+  setStatus('Dłoń otwarta ✓', 'ok');
+}
+
+// ============================================================
+//  Logika UI — Chwyt Adaptacyjny
+// ============================================================
+function buildViz() {
+  const row = document.getElementById('vizRow');
+  row.innerHTML = '';
+  const labels = ['P1','P2','P3','P4','K1','K2','K3'];
+  for (let i = 0; i < 7; i++) {
+    row.innerHTML += `
+    <div class="viz-col">
+      <div class="viz-outer">
+        <div class="viz-fill" id="vb${i}" style="height:0%"></div>
+      </div>
+      <span class="viz-lbl">${labels[i]}</span>
+    </div>`;
+  }
+}
+
+function buildProfiles() {
+  const list = document.getElementById('profileList');
+  list.innerHTML = '';
+  for (let i = 0; i < 7; i++) {
+    const bLeft  = gripStart[i] + '%';
+    const bWidth = Math.max(0, gripEnd[i] - gripStart[i]) + '%';
+    list.innerHTML += `
+    <div class="profile-card">
+      <h4>${SERVO_NAMES[i]}</h4>
+      <div class="pbar-wrap">
+        <div class="pbar" id="pb${i}" style="left:${bLeft};width:${bWidth}"></div>
+      </div>
+      <div class="profile-inputs">
+        <label>Start (%)
+          <input type="number" min="0" max="99" value="${gripStart[i]}"
+                 onchange="updateProfile(${i},'start',this.value)" id="ps${i}">
+        </label>
+        <label>Koniec (%)
+          <input type="number" min="1" max="100" value="${gripEnd[i]}"
+                 onchange="updateProfile(${i},'end',this.value)" id="pe${i}">
+        </label>
+      </div>
+    </div>`;
+  }
+}
+
+function onGripChange(val) {
+  currentGrip = parseInt(val);
+  document.getElementById('gripDisplay').textContent = currentGrip + '%';
+  const gr = document.getElementById('gripRange');
+  gr.style.setProperty('--pct', currentGrip + '%');
+  for (let i = 0; i < 7; i++) {
+    const fill = calcFingerFill(i, currentGrip);
+    const vb = document.getElementById('vb'+i);
+    if (vb) vb.style.height = fill + '%';
+  }
+}
+
+function calcFingerFill(i, pct) {
+  if (pct >= gripEnd[i]) return 100;
+  if (pct <= gripStart[i]) return 0;
+  return Math.round((pct - gripStart[i]) / (gripEnd[i] - gripStart[i]) * 100);
+}
+
+function updateProfile(i, type, val) {
+  val = parseInt(val);
+  if (type === 'start') gripStart[i] = val;
+  else gripEnd[i] = val;
+  const pb = document.getElementById('pb'+i);
+  if (pb) {
+    pb.style.left  = gripStart[i] + '%';
+    pb.style.width = Math.max(0, gripEnd[i] - gripStart[i]) + '%';
+  }
+}
+
+async function applyGrip() {
+  for (let i = 0; i < 7; i++) {
+    let t = 0;
+    if (currentGrip >= gripEnd[i]) t = 1;
+    else if (currentGrip > gripStart[i])
+      t = (currentGrip - gripStart[i]) / (gripEnd[i] - gripStart[i]);
+    currentPos[i] = Math.round(SERVO_OPEN[i] + t * (SERVO_CLOSE[i] - SERVO_OPEN[i]));
+    const sl = document.getElementById('sl'+i);
+    if (sl) { sl.value = currentPos[i]; onServoChange(i, currentPos[i]); }
+  }
+  setStatus('Wysyłanie chwytu ' + currentGrip + '%...', '');
+  await sendServoCmd(currentPos);
+  setStatus('Chwyt zastosowany ✓', 'ok');
+}
+
+// ============================================================
+//  Presety
+// ============================================================
+function buildPresets() {
+  const grid = document.getElementById('presetGrid');
+  grid.innerHTML = '';
+  PRESETS.forEach((p,id) => {
+    grid.innerHTML += `
+    <button class="preset-card" onclick="applyPreset(${id})">
+      <div class="preset-icon">${p.icon}</div>
+      <div class="preset-name">${p.name}</div>
+      <div class="preset-desc">${p.desc}</div>
+    </button>`;
+  });
+}
+
+async function applyPreset(id) {
+  const p = PRESETS[id];
+  for (let i = 0; i < 7; i++) {
+    currentPos[i] = p.angles[i];
+    const sl = document.getElementById('sl'+i);
+    if (sl) { sl.value = currentPos[i]; onServoChange(i, currentPos[i]); }
+  }
+  setStatus('Preset: ' + p.name + '...', '');
+  await sendServoCmd(currentPos);
+  setStatus('Preset: ' + p.name + ' ✓', 'ok');
+}
+
+// ============================================================
+//  Nawigacja
+// ============================================================
+function showPage(name) {
+  ['independent','grip','presets'].forEach(n => {
+    document.getElementById('page-'+n).classList.toggle('active', n===name);
+    document.getElementById('nav-'+n).classList.toggle('active', n===name);
+  });
+}
+
+// ============================================================
+//  Init
+// ============================================================
+if (!navigator.bluetooth) {
+  document.getElementById('noBle').classList.add('show');
+}
+buildServoList();
+buildViz();
+buildProfiles();
+buildPresets();
+
+// Service Worker (PWA)
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('./sw.js').catch(()=>{});
+}
+</script>
+</body>
+</html>
